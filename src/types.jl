@@ -1,4 +1,6 @@
 
+################# primitive types ####################
+
 # jni_md.h
 typealias jint Cint
 #ifdef _LP64 /* 64-bit Solaris */
@@ -17,38 +19,39 @@ typealias jsize jint
 jprimitive = Union(jboolean, jchar, jshort, jfloat, jdouble, jint, jlong)
 
 
+################# JavaClass (for importing) ####################
+
 type JavaClass
+    # TOOD: add optional type parameters
+    ptr::Ptr{Void} 
     classname::String
 end
 
-
-
-type JavaObject
-    ptr::Ptr{Void}
-    class::JavaClass
+function JavaClass(classname::String)
     
-    function JavaObject(class::JavaClass)
-        jo = new(ptr, class.classname)
-        # finalizer(jo, deleteref)
-        return jo
-    end 
-    
-    # JavaObject(class, argtypes::Tuple, args...) = jnew(class, argtypes, args...)    
 end
 
 
-macro jimport(class)
-    if isa(class, Expr)
-        juliaclass=sprint(Base.show_unquoted, class)
-    elseif  isa(class, Symbol)
-        juliaclass=string(class)
-    elseif isa(class, String) 
-        juliaclass=class
-    else 
-        error("Macro parameter is of type $(typeof(class))!!")
-    end
-    quote 
-        JavaObject{(Base.symbol($juliaclass))}
-    end
+################# JavaObject ####################
+
+type JavaObject
+    ptr::Ptr{Void}
+    class::JavaClass    
+end
+
+function JavaObject(class::JavaClass)
+    jo = new(ptr, class.classname)
+    # finalizer(jo, deleteref)
+    return jo
+end 
     
+# JavaObject(class, argtypes::Tuple, args...) = jnew(class, argtypes, args...)    
+
+
+################# core funcitions ####################
+
+
+# jimport simply creates instance of JavaClass with specified class name
+macro jimport(class)
+    JavaClass(string(class)) 
 end
