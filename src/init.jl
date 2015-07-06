@@ -111,4 +111,3 @@ function destroy()
 	if res < 0; error("Unable to destroy Java VM"); end
 	global penv=C_NULL; global pjvm=C_NULL; 
 end
-

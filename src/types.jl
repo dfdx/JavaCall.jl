@@ -21,14 +21,27 @@ jprimitive = Union(jboolean, jchar, jshort, jfloat, jdouble, jint, jlong)
 
 ################# JavaClass (for importing) ####################
 
-type JavaClass
-    # TOOD: add optional type parameters
-    ptr::Ptr{Void} 
-    classname::String
+if !isdefined(:JavaClass) # avoiding error in REPL
+
+    # note that classname is not a type parameter, but instead simple field
+    # the idea is to mimic JVM that doesn't know about object's type during runtime
+    # this way we also avoid Julia's type dispatching for different Java classes
+    # and treat them all the same way
+    type JavaClass    
+        ptr::Ptr{Void} 
+        classname::String
+        typeparams::Vector{JavaClass}  # NOTE: not used yet
+    end
+    
 end
 
-function JavaClass(classname::String)
-    
+@memoize function JavaClass(classname::String)
+    jniname = utf8(replace(classname, '.', '/'))
+    jclassptr = ccall(jnifunc.FindClass, Ptr{Void}, (Ptr{JNIEnv}, Ptr{Uint8}), penv, jniname)
+    if jclassptr == C_NULL
+        error("Class Not Found $jclass")
+    end
+    return JavaClass(jclassptr, classname, [])
 end
 
 
@@ -39,9 +52,19 @@ type JavaObject
     class::JavaClass    
 end
 
+function deleteref(x::JavaObject)	
+	if x.ptr == C_NULL; return; end
+	if (penv==C_NULL); return; end
+	#ccall(:jl_,Void,(Any,),x)
+	ccall(jnifunc.DeleteLocalRef, Void, (Ptr{JNIEnv}, Ptr{Void}), penv, x.ptr)
+	x.ptr=C_NULL #Safety in case this function is called direcly, rather than at finalize 
+	return
+end 
+
+
 function JavaObject(class::JavaClass)
     jo = new(ptr, class.classname)
-    # finalizer(jo, deleteref)
+    finalizer(jo, deleteref)
     return jo
 end 
     
@@ -55,3 +78,4 @@ end
 macro jimport(class)
     JavaClass(string(class)) 
 end
+
