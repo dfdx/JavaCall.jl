@@ -17,7 +17,10 @@ To call these methods we need to get pointer to the class object. Currently, not
 
 This leads to issues such as [#11][1], where `JClass` cannot serve as a return type. Though it is possible to apply fix for this specific issue, without proper model many other issues may arise. 
 
-The goal of this branch is to explore possibility to replace `JavaObject{T}` (a type) with `JavaClass(T)` (an object). This won't fix duality of Java's classes (class = type / object), but will follow JVM runtime more closely, avoiding some possible problems.   
+The core of the problem is that `java.lang.Class` is represented in JavaCall as 2 different things - type () and object (JClass{T}(...)). 
+
+
+The goal of this branch is to explore possibility to merge `JavaObject{T}` (a type) and `JClass` (an object) into single `JavaClass{T}(Ptr)`. 
 
 
 

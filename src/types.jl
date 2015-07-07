@@ -7,7 +7,7 @@ typealias jint Cint
 # typedef long jlong;
 typealias jlong Clonglong
 typealias jbyte Cchar
- 
+
 # jni.h
 
 typealias jboolean Cuchar
@@ -19,21 +19,16 @@ typealias jsize jint
 jprimitive = Union(jboolean, jchar, jshort, jfloat, jdouble, jint, jlong)
 
 
-################# JavaClass (for importing) ####################
+################# JavaClass ####################
 
-if !isdefined(:JavaClass) # avoiding error in REPL
+# JavaClass is used for importing, calling static methods and defining `jcall` types
+# except for static methods, JavaClass should be considered as a TYPE
 
-    # note that classname is not a type parameter, but instead simple field
-    # the idea is to mimic JVM that doesn't know about object's type during runtime
-    # this way we also avoid Julia's type dispatching for different Java classes
-    # and treat them all the same way
-    type JavaClass    
-        ptr::Ptr{Void} 
-        classname::String
-        typeparams::Vector{JavaClass}  # NOTE: not used yet
-    end
-    
+type JavaClass
+    ptr::Ptr{Void}
+    classname::String
 end
+
 
 @memoize function JavaClass(classname::String)
     jniname = utf8(replace(classname, '.', '/'))
@@ -41,34 +36,48 @@ end
     if jclassptr == C_NULL
         error("Class Not Found $jclass")
     end
-    return JavaClass(jclassptr, classname, [])
+    return JavaClass(jclassptr, classname)
 end
 
 
 ################# JavaObject ####################
 
-type JavaObject
+# JavaObject is used for instantiating Java objects and calling methods
+# it should be considered as DATA
+
+# type parameter T is used for dispatching and should be equal to `symbol(obj.class.classname)`
+
+type JavaObject{T}
     ptr::Ptr{Void}
-    class::JavaClass    
+    class::JavaClass
+
+    function JavaObject{T}(ptr::Ptr{Void}, class::JavaClass)
+        jo = new(ptr, class)
+        finalizer(jo, deleteref)
+        return jo
+    end
 end
 
-function deleteref(x::JavaObject)	
-	if x.ptr == C_NULL; return; end
-	if (penv==C_NULL); return; end
-	#ccall(:jl_,Void,(Any,),x)
-	ccall(jnifunc.DeleteLocalRef, Void, (Ptr{JNIEnv}, Ptr{Void}), penv, x.ptr)
-	x.ptr=C_NULL #Safety in case this function is called direcly, rather than at finalize 
-	return
-end 
 
-
-function JavaObject(class::JavaClass)
-    jo = new(ptr, class.classname)
+function JavaObject(classname::String)
+    class = JavaClass(classname)
+    jo = JavaObject{symbol(classname)}(ptr, class)
     finalizer(jo, deleteref)
     return jo
-end 
-    
-# JavaObject(class, argtypes::Tuple, args...) = jnew(class, argtypes, args...)    
+end
+
+# JavaObject(class, argtypes::Tuple, args...) = jnew(class, argtypes, args...)
+
+
+function deleteref(x::JavaObject)
+    if x.ptr == C_NULL; return; end
+    if (penv==C_NULL); return; end
+    #ccall(:jl_,Void,(Any,),x)
+    ccall(jnifunc.DeleteLocalRef, Void, (Ptr{JNIEnv}, Ptr{Void}), penv, x.ptr)
+    x.ptr=C_NULL #Safety in case this function is called direcly, rather than at finalize
+    return
+end
+
 
 
 ################# core funcitions ####################
@@ -76,6 +85,5 @@ end
 
 # jimport simply creates instance of JavaClass with specified class name
 macro jimport(class)
-    JavaClass(string(class)) 
+    JavaClass(string(class))
 end
-
