@@ -1,0 +1,26 @@
+
+In Java, there are 2 kinds of objects with callable methods: 
+
+ - instances (normal methods)
+ - classes (static methods)
+
+Currently, instances are represented as objects of type `JavaClass{T}`, where `T` is a symbol holding the name of the class, and classes are represented as this type itself. E.g.:
+
+    java.lang.String("hello")  ===  JavaObject{symbol("java.lang.String")}(Ptr{Void}...)
+    java.lang.String           ===  JavaObject{symbol("java.lang.String")}     
+
+This is convenient in that in both - Java and JavaCall - class is a type. However, in Java class is also an object (area in memory) and has its own methods. 
+
+To call these methods we need to get pointer to the class object. Currently, notion of `metaclass` is used for this, as well as wrapping type `JClass`. And here Java and JavaCall diverge: in Java instance of a `Class` is also an `Object`, but in JavaCall `JClass` is unrelated to `JavaObject`: 
+
+    java.lang.Class(...)   =/=  JavaObject{symbol("java.lang.Class")}
+
+This leads to issues such as [#11][1], where `JClass` cannot serve as a return type. Though it is possible to apply fix for this specific issue, without proper model many other issues may arise. 
+
+The goal of this branch is to explore possibility to replace `JavaObject{T}` (a type) with `JavaClass(T)` (an object). This won't fix duality of Java's classes (class = type / object), but will follow JVM runtime more closely, avoiding some possible problems.   
+
+
+
+
+
+[1]: https://github.com/aviks/JavaCall.jl/issues/11
