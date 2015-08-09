@@ -5,7 +5,7 @@ typealias jint Cint
 # typedef long jlong;
 typealias jlong Clonglong
 typealias jbyte Cchar
- 
+
 # jni.h
 
 typealias jboolean Cuchar
@@ -20,17 +20,17 @@ immutable JavaMetaClass{T}
     ptr::Ptr{Void}
 end
 
-#The metaclass, sort of equivalent to a the 
+#The metaclass, sort of equivalent to a the
 JavaMetaClass(T, ptr) = JavaMetaClass{T}(ptr)
 
 type JavaObject{T}
     ptr::Ptr{Void}
-    
+
     function JavaObject(ptr)
         j=new(ptr)
         finalizer(j, deleteref)
         return j
-    end 
+    end
 
     JavaObject(argtypes::Tuple, args...) = jnew(T, argtypes, args...)
 
@@ -38,11 +38,17 @@ end
 
 JavaObject(T, ptr) = JavaObject{T}(ptr)
 
+
+function globalref(ref::Ptr)
+    ccall(jnifunc.NewGlobalRef, Ptr{Void}, (Ptr{JNIEnv}, Ptr{Void}), penv, ref)
+end
+
+
 function deleteref(x::JavaObject)
     if x.ptr == C_NULL; return; end
     if (penv==C_NULL); return; end
     #ccall(:jl_,Void,(Any,),x)
-    ccall(jnifunc.DeleteLocalRef, Void, (Ptr{JNIEnv}, Ptr{Void}), penv, x.ptr)
+    ccall(jnifunc.DeleteGlobalRef, Void, (Ptr{JNIEnv}, Ptr{Void}), penv, x.ptr)
     x.ptr=C_NULL #Safety in case this function is called direcly, rather than at finalize
     return
 end
@@ -60,7 +66,7 @@ function JString(str::String)
     jstring = ccall(jnifunc.NewStringUTF, Ptr{Void}, (Ptr{JNIEnv}, Ptr{Uint8}), penv, utf8(str))
     if jstring == C_NULL
         geterror()
-    else 
+    else
         return JString(jstring)
     end
 end
@@ -103,15 +109,15 @@ function jcall{T}(typ::Type{JavaObject{T}}, method::String, rettype::Type, argty
     try
         gc_enable(false)
         sig = method_signature(rettype, argtypes...)
-        
+
         jmethodId = ccall(jnifunc.GetStaticMethodID, Ptr{Void}, (Ptr{JNIEnv}, Ptr{Void}, Ptr{Uint8}, Ptr{Uint8}), penv, metaclass(T), utf8(method), sig)
         if jmethodId==C_NULL; geterror(true); end
-        
+
         _jcall(metaclass(T), jmethodId, C_NULL, rettype, argtypes, args...)
     finally
         gc_enable(true)
     end
-    
+
 end
 
 # Call instance methods
@@ -189,7 +195,7 @@ javaclassname(class::Symbol) = utf8(replace(string(class), '.', '/'))
 
 function geterror(allow=false)
     isexception = ccall(jnifunc.ExceptionCheck, jboolean, (Ptr{JNIEnv},), penv )
-    
+
     if isexception == JNI_TRUE
         jthrow = ccall(jnifunc.ExceptionOccurred, Ptr{Void}, (Ptr{JNIEnv},), penv)
         if jthrow==C_NULL ; error("Java Exception thrown, but no details could be retrieved from the JVM"); end

@@ -88,8 +88,8 @@ function convert_arg{T<:JavaObject}(argtype::Type{Array{T,1}}, arg)
 end
 
 convert_result{T<:JString}(rettype::Type{T}, result) = bytestring(JString(result))
-convert_result{T<:JavaObject}(rettype::Type{T}, result) = T(result)
-convert_result(rettype, result) = result
+convert_result{T<:JavaObject}(rettype::Type{T}, result) = T(globalref(result))
+convert_result(rettype, result) = globalref(result)
 
 for (x, y, z) in [ (:jboolean, :(jnifunc.GetBooleanArrayElements), :(jnifunc.ReleaseBooleanArrayElements)),
                   (:jchar, :(jnifunc.GetCharArrayElements), :(jnifunc.ReleaseCharArrayElements)),
@@ -106,7 +106,7 @@ for (x, y, z) in [ (:jboolean, :(jnifunc.GetBooleanArrayElements), :(jnifunc.Rel
             jl_arr::Array = pointer_to_array(arr, (@compat Int(sz)), false)
             jl_arr = deepcopy(jl_arr)
             ccall($(z), Void, (Ptr{JNIEnv},Ptr{Void}, Ptr{$(x)}, jint), penv, result, arr, 0)
-            return jl_arr
+            return globalref(jl_arr)
         end
     end
     eval(m)
